@@ -1,7 +1,9 @@
 var Promise = require('bluebird');
+var rp = require('request-promise');
 var WebSocket = require('ws');
 var xml2js = require('xml2js').parseString;
 var uuid = require('uuid/v4');
+var URL = require('url');
 
 var Bot = function() {
   var self = this;
@@ -9,19 +11,10 @@ var Bot = function() {
   self.ws = null;
   self.responses = [];
 
-  /* curl -v 'https://login.citrixonline.com/login?service=https%3A%2F%2Fauthentication.citrixonline.com%2Foauth%2Fauthorize%3Fresponse_type%3Dtoken%26client_id%3Da3f8c466-be7b-4e6c-b539-c688fa06afb7%26redirect_uri%3Dhttps%253A%252F%252Fmessenger.gotomeeting.com%252F%26scope%3Dsocial-graph%26login_theme%3Dg2m' -H 'Content-Type: application/x-www-form-urlencoded' --data 'emailAddress=john@aol.com&password=password&submit=Sign+in&rememberMe=on&_eventId=submit&lt=&execution=' */
+  self.emailAddress = 'email';
+  self.password = 'password';
 
-  self.jwt = 'responseCookieFromCurlRequest';
-  self.userId = '1234567890123456789@chat.platform.getgo.com'; /* you should probably find this on your own */
   self.clientName = 'web-client||9719';
-
-  self.authToken = Buffer.concat([
-    Buffer.from('${self.userId}'), 
-    Buffer.from([0x00]), 
-    Buffer.from(`${self.userId.split('@')[0]}`), 
-    Buffer.from([0x00]), 
-    Buffer.from(`{Bearer}${self.jwt}`)
-  ]).toString('base64');
 
   self.possibleCommands = [
     {
@@ -31,6 +24,79 @@ var Bot = function() {
       }
     }
   ];
+};
+
+Bot.prototype.login = function() {
+  var self = this;
+
+  var cookieJar = rp.jar();
+
+  var options = {
+    method: 'POST',
+    uri: 'https://authentication.logmeininc.com/login',
+    form: {
+      emailAddress: self.emailAddress,
+      password: self.password,
+      submit: 'Sign in',
+      rememberMe: 'on',
+      _eventId: 'submit',
+      lt: '',
+      execution: ''
+    },
+    qs: {
+      service: 'https://authentication.logmeininc.com/oauth/authorize?client_id=a3f8c466-be7b-4e6c-b539-c688fa06afb7&login_theme=g2m&redirect_uri=https%3A%2F%2Fmessenger.gotomeeting.com%2F&response_type=token&scope=social-graph',
+      theme: 'g2m'
+    },
+    resolveWithFullResponse: true,
+    followRedirect: false,
+    simple: false,
+    jar: cookieJar
+  };
+
+  return rp(options)
+    .then(function(response) {
+      var options = {
+        method: 'GET',
+        uri: response.headers.location,
+        followRedirect: false,
+        simple: false,
+        resolveWithFullResponse: true,
+        jar: cookieJar
+      };
+
+      return rp(options);
+    })
+    .then(function(response) {
+      var parsedUrl = URL.parse(response.headers.location.replace('#', '?'), true);
+
+      self.jwt = parsedUrl.query.access_token;
+
+      var options = {
+        method: 'GET',
+        uri: 'https://iam.servers.getgo.com/identity/v1/Users/me',
+        headers: {
+          'Authorization': `Bearer ${self.jwt}`
+        },
+        followRedirect: false,
+        simple: false,
+        resolveWithFullResponse: true
+      };
+
+      return rp(options);
+    })
+    .then(function(response) {
+      var splitLocation = response.headers.location.split('/');
+
+      self.userId = `${splitLocation[splitLocation.length - 1]}@chat.platform.getgo.com`;
+
+      self.authToken = Buffer.concat([
+        Buffer.from('${self.userId}'), 
+        Buffer.from([0x00]), 
+        Buffer.from(`${self.userId.split('@')[0]}`), 
+        Buffer.from([0x00]), 
+        Buffer.from(`{Bearer}${self.jwt}`)
+      ]).toString('base64');
+    });
 };
 
 Bot.prototype.waitForMessage = function() {
@@ -230,4 +296,7 @@ Bot.prototype.run = function() {
 
 var bot = new Bot();
 
-bot.run();
+bot.login()
+.then(function() {
+  bot.run();
+});
