@@ -11,9 +11,17 @@ var Bot = require('./lib/Bot.js');
   
   var bot = new Bot(emailAddress, password);
 
-  await bot.login()
+  await bot.login();
 
-  await bot.run();
+  await bot.connect();
+
+  await bot.auth();
+
+  await bot.subscribeToChannels();
+
+  console.log(new Date(), 'Listening for messages!');
+
+  await bot.waitForMessages();
 })();
 
 process.on('unhandledRejection', function(err) {
