@@ -1,6 +1,6 @@
 # gotomeeting-messenger-bot
 Because the world needs another Slack...
 
-1. Change self.emailAddress + self.password in app.js
+## Usage
 
-2. Run `node app.js`
+Run `node bot.js emailAddress password`
