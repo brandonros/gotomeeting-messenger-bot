@@ -16,6 +16,8 @@
   "homepage": "https://github.com/brandonros/gotomeeting-messenger-bot#readme",
   "dependencies": {
     "javascript-state-machine": "^3.0.1",
+    "lowdb": "^1.0.0",
+    "moment": "^2.20.1",
     "request": "^2.83.0",
     "request-debug": "^0.2.0",
     "request-promise": "^4.2.2",
